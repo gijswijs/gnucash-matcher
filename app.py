@@ -2,8 +2,9 @@ import argparse
 import sys
 from datetime import datetime, timedelta
 
+import gnucash
 from gnucash import Session
-from gnucash.gnucash_business import GetUnpaidBills, GetUnpaidInvoices
+from gnucash.gnucash_business import Invoice
 
 def find_account_by_path(root, path):
     """Finds an account by its full path, splitting by ':'."""
@@ -17,6 +18,77 @@ def find_account_by_path(root, path):
 def gdate_to_datetime(gdate):
     """Converts a GnuCash GDate to a Python datetime object."""
     return datetime(gdate.year, gdate.month, gdate.day)
+
+
+def get_all_invoices(book, is_paid=None, is_active=None):
+    """Returns a list of all invoices in the book.
+    Posts a query to search for all invoices.
+    arguments:
+    book the gnucash book to work with
+    keyword-arguments:
+    is_paid int 1 to search for invoices having been paid, 0 for not, None to ignore.
+    is_active int 1 to search for active invoices
+    """
+    query = gnucash.Query()
+    query.search_for('gncInvoice')
+    query.set_book(book)
+    if is_paid == 0:
+        query.add_boolean_match([gnucash.INVOICE_IS_PAID], False, gnucash.QOF_QUERY_AND)
+    elif is_paid == 1:
+        query.add_boolean_match([gnucash.INVOICE_IS_PAID], True, gnucash.QOF_QUERY_AND)
+    elif is_paid == None:
+        pass
+    # active = JOB_IS_ACTIVE
+    if is_active == 0:
+        query.add_boolean_match(['active'], False, gnucash.QOF_QUERY_AND)
+    elif is_active == 1:
+        query.add_boolean_match(['active'], True, gnucash.QOF_QUERY_AND)
+    elif is_active == None:
+        pass
+    # return only invoices (1 = invoices)
+    pred_data = gnucash.gnucash_core.QueryInt32Predicate(gnucash.QOF_COMPARE_EQUAL, 1)
+    query.add_term([gnucash.INVOICE_TYPE], pred_data, gnucash.QOF_QUERY_AND)
+    invoice_list = []
+    for result in query.run():
+        invoice_list.append(Invoice(instance=result))
+    query.destroy()
+    return invoice_list
+
+
+def get_all_bills(book, is_paid=None, is_active=None):
+    """Returns a list of all bills in the book.
+    Posts a query to search for all bills.
+    arguments:
+    book the gnucash book to work with
+    keyword-arguments:
+    is_paid int 1 to search for bills having been paid, 0 for not, None to ignore.
+    is_active int 1 to search for active bills
+    """
+    query = gnucash.Query()
+    query.search_for('gncInvoice')
+    query.set_book(book)
+    if is_paid == 0:
+        query.add_boolean_match([gnucash.INVOICE_IS_PAID], False, gnucash.QOF_QUERY_AND)
+    elif is_paid == 1:
+        query.add_boolean_match([gnucash.INVOICE_IS_PAID], True, gnucash.QOF_QUERY_AND)
+    elif is_paid == None:
+        pass
+    # active = JOB_IS_ACTIVE
+    if is_active == 0:
+        query.add_boolean_match(['active'], False, gnucash.QOF_QUERY_AND)
+    elif is_active == 1:
+        query.add_boolean_match(['active'], True, gnucash.QOF_QUERY_AND)
+    elif is_active == None:
+        pass
+    # return only bills (0 = bills)
+    pred_data = gnucash.gnucash_core.QueryInt32Predicate(gnucash.QOF_COMPARE_EQUAL, 0)
+    query.add_term([gnucash.INVOICE_TYPE], pred_data, gnucash.QOF_QUERY_AND)
+    bill_list = []
+    for result in query.run():
+        bill_list.append(Invoice(instance=result))
+    query.destroy()
+    return bill_list
+
 
 def main():
     """Main function to process GnuCash data."""
@@ -57,7 +129,7 @@ def main():
     processed_transactions = set()
 
     if args.mode == 'ar':
-        unpaid_invoices = GetUnpaidInvoices(book.get_root_account(), None, None)
+        unpaid_invoices = get_all_invoices(book, is_paid=0)
         print(f"Found {len(unpaid_invoices)} unpaid invoices.")
 
         for split in payment_account.GetSplitList():
@@ -85,7 +157,7 @@ def main():
             processed_transactions.add(transaction.GetGUID())
 
     elif args.mode == 'ap':
-        unpaid_bills = GetUnpaidBills(book.get_root_account(), None, None)
+        unpaid_bills = get_all_bills(book, is_paid=0)
         print(f"Found {len(unpaid_bills)} unpaid bills.")
 
         for split in payment_account.GetSplitList():
