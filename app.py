@@ -82,13 +82,14 @@ def main():
     parser = argparse.ArgumentParser(
         description="Automatically match payments to invoices or bills in a GnuCash file."
     )
-    parser.add_argument("gnucash_file", help="Path to the GnuCash file (.gnucash).")
+    parser.add_argument("--gnucash_file", required=True, help="Path to the GnuCash file (.gnucash).")
     parser.add_argument(
-        "payment_account",
+        "--payment_account",
+        required=True,
         help="Full name of the payment account (e.g., 'Assets:Current Assets:Checking Account')."
     )
-    parser.add_argument("mode", choices=['ar', 'ap'], help="Processing mode: 'ar' for invoices/receivables or 'ap' for bills/payables.")
-    parser.add_argument("ar_ap_account", help="Full name of the Accounts Receivable or Accounts Payable account.")
+    parser.add_argument("--mode", choices=['ar', 'ap'], required=True, help="Processing mode: 'ar' for invoices/receivables or 'ap' for bills/payables.")
+    parser.add_argument("--ar_ap_account", required=True, help="Full name of the Accounts Receivable or Accounts Payable account.")
     args = parser.parse_args()
 
     try:
