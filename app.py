@@ -96,6 +96,8 @@ def main():
     )
     parser.add_argument("--mode", choices=['ar', 'ap'], required=True, help="Processing mode: 'ar' for invoices/receivables or 'ap' for bills/payables.")
     parser.add_argument("--ar_ap_account", required=True, help="Full name of the Accounts Receivable or Accounts Payable account.")
+    parser.add_argument("--days_before", type=int, default=10, help="Number of days the document date can be after the payment date. Default: 10")
+    parser.add_argument("--days_after", type=int, default=30, help="Number of days the document date can be before the payment date. Default: 30")
     args = parser.parse_args()
 
     try:
@@ -153,7 +155,7 @@ def main():
                     doc_date = gdate_to_datetime(doc.GetDatePosted()).date()
                     date_diff_days = (payment_date - doc_date).days
 
-                    if doc_amount.equal(payment_amount) and -10 <= date_diff_days <= 30:
+                    if doc_amount.equal(payment_amount) and -args.days_before <= date_diff_days <= args.days_after:
                         # Get the posted lot of the document. This is where gnucash keeps track of the open balance.
                         postedLot = doc.GetPostedLot()
                         # All splits assigned to the lot must belong to the same account.
