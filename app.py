@@ -5,6 +5,12 @@ from datetime import datetime, timedelta
 import gnucash
 from gnucash import Session
 from gnucash.gnucash_business import Invoice
+from gnucash.gnucash_core_c import qof_log_set_level, qof_log_init_filename
+from gnucash.gnucash_core_c import GNC_INVOICE_CUST_INVOICE, GNC_INVOICE_VEND_INVOICE
+
+#  The below doesn't seem to work. We still try it tho.
+qof_log_set_level("", gnucash.gnucash_core_c.QOF_LOG_ERROR)
+qof_log_init_filename("./gnucash-matcher.log")
 
 def find_account_by_path(root, path):
     """Finds an account by its full path, splitting by ':'."""
@@ -31,7 +37,7 @@ def get_all_invoices(book, is_paid=None, is_active=None):
     """
     query = get_all_invoices_and_bills(book, is_paid, is_active)
     # return only invoices (1 = invoices)
-    pred_data = gnucash.gnucash_core.QueryInt32Predicate(gnucash.QOF_COMPARE_EQUAL, 1)
+    pred_data = gnucash.gnucash_core.QueryInt32Predicate(gnucash.QOF_COMPARE_EQUAL, GNC_INVOICE_CUST_INVOICE)
     query.add_term([gnucash.INVOICE_TYPE], pred_data, gnucash.QOF_QUERY_AND)
     invoice_list = []
     for result in query.run():
@@ -50,7 +56,7 @@ def get_all_bills(book, is_paid=None, is_active=None):
     """
     query = get_all_invoices_and_bills(book, is_paid, is_active)
     # return only bills (0 = bills)
-    pred_data = gnucash.gnucash_core.QueryInt32Predicate(gnucash.QOF_COMPARE_EQUAL, 0)
+    pred_data = gnucash.gnucash_core.QueryInt32Predicate(gnucash.QOF_COMPARE_EQUAL, GNC_INVOICE_VEND_INVOICE)
     query.add_term([gnucash.INVOICE_TYPE], pred_data, gnucash.QOF_QUERY_AND)
     bill_list = []
     for result in query.run():
@@ -93,7 +99,7 @@ def main():
     args = parser.parse_args()
 
     try:
-        session = Session(args.gnucash_file, is_new=False, force_lock=True)
+        session = Session(args.gnucash_file, is_new=False)
     except Exception as e:
         print(f"Error opening GnuCash file: {e}", file=sys.stderr)
         sys.exit(1)
@@ -117,62 +123,56 @@ def main():
     processed_transactions = set()
 
     if args.mode == 'ar':
-        unpaid_invoices = get_all_invoices(book, is_paid=0)
-        print(f"Found {len(unpaid_invoices)} unpaid invoices.")
-
-        for split in payment_account.GetSplitList():
-            transaction = split.GetParent()
-            if transaction.GetGUID() in processed_transactions:
-                continue
-
-            for other_split in transaction.GetSplitList():
-                if other_split.GetAccount() == ar_ap_account and not other_split.GetLot():
-                    payment_amount = other_split.GetValue().abs()
-                    payment_date = transaction.GetDate().date()
-
-                    for invoice in list(unpaid_invoices):
-                        invoice_amount = invoice.GetTotal()
-                        invoice_date = gdate_to_datetime(invoice.GetDatePosted()).date()
-                        date_diff_days = (payment_date - invoice_date).days
-
-                        if invoice_amount == payment_amount and -10 <= date_diff_days <= 30:
-                            print(f"Matching payment on {payment_date} ({payment_amount}) to Invoice {invoice.GetID()} from {invoice_date}")
-                            other_split.SetLot(invoice)
-                            unpaid_invoices.remove(invoice)
-                            changes_made = True
-                            break
-                    break
-            processed_transactions.add(transaction.GetGUID())
-
+        unpaid_docs = get_all_invoices(book, is_paid=0)
+        print(f"Found {len(unpaid_docs)} unpaid invoices.")
     elif args.mode == 'ap':
-        unpaid_bills = get_all_bills(book, is_paid=0)
-        print(f"Found {len(unpaid_bills)} unpaid bills.")
+        unpaid_docs = get_all_bills(book, is_paid=0)
+        print(f"Found {len(unpaid_docs)} unpaid bills.")
 
-        for split in payment_account.GetSplitList():
-            transaction = split.GetParent()
-            if transaction.GetGUID() in processed_transactions:
-                continue
+    match_counter = 0
+    for split in payment_account.GetSplitList():
+        transaction = split.GetParent()
+        if transaction.GetGUID() in processed_transactions:
+            continue
 
-            for other_split in transaction.GetSplitList():
-                if other_split.GetAccount() == ar_ap_account and not other_split.GetLot():
-                    payment_amount = other_split.GetValue()
-                    payment_date = transaction.GetDate().date()
+        splits = transaction.GetSplitList()
 
-                    for bill in list(unpaid_bills):
-                        bill_amount = bill.GetTotal()
-                        bill_date = gdate_to_datetime(bill.GetDatePosted()).date()
-                        date_diff_days = (payment_date - bill_date).days
+        # Ensure there are exactly two splits (one for the payment account and one for the other account)
+        if len(splits) != 2:
+            continue
+        
+        for other_split in splits:
+            # Find the split that is not in the payment account and does not have a lot assigned.
+            if other_split.GetAccount().Equal(ar_ap_account, False) and not other_split.GetLot():
+                payment_amount = other_split.GetValue().abs()
+                payment_date = transaction.GetDate().date()
 
-                        if bill_amount == payment_amount and -10 <= date_diff_days <= 30:
-                            print(f"Matching payment on {payment_date} ({payment_amount}) to Bill {bill.GetID()} from {bill_date}")
-                            other_split.SetLot(bill)
-                            unpaid_bills.remove(bill)
+                # Loop though the unpaid docs (either invoices or bills)
+                for doc in list(unpaid_docs):
+                    doc_amount = doc.GetTotal()
+                    doc_date = gdate_to_datetime(doc.GetDatePosted()).date()
+                    date_diff_days = (payment_date - doc_date).days
+
+                    if doc_amount.equal(payment_amount) and -10 <= date_diff_days <= 30:
+                        # Get the posted lot of the document. This is where gnucash keeps track of the open balance.
+                        postedLot = doc.GetPostedLot()
+                        # All splits assigned to the lot must belong to the same account.
+                        if postedLot.get_account().Equal(ar_ap_account, False):
+                            # This is a match!
+                            match_counter += 1
+                            print(f"[{match_counter}] Matching payment on {payment_date} ({payment_amount}) to Invoice {doc.GetID()} ({doc_amount}) from {doc_date}")
+                            # Assign the split to the lot.
+                            other_split.AssignToLot(doc.GetPostedLot())
+                            # Remove the document from the list of unpaid documents. We don't consider multiple payments to the same document.
+                            unpaid_docs.remove(doc)
+                            # Mark that we made changes. So that we can save the session later.
                             changes_made = True
-                            break
-                    break
-            processed_transactions.add(transaction.GetGUID())
+                        break
+                break
+        processed_transactions.add(transaction.GetGUID())
 
     if changes_made:
+        print(f"{match_counter} Matches found.")
         print("Saving changes...")
         session.save()
     else:
