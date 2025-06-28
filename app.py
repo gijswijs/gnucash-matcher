@@ -98,6 +98,7 @@ def main():
     parser.add_argument("--ar_ap_account", required=True, help="Full name of the Accounts Receivable or Accounts Payable account.")
     parser.add_argument("--days_before", type=int, default=10, help="Number of days the document date can be after the payment date. Default: 10")
     parser.add_argument("--days_after", type=int, default=30, help="Number of days the document date can be before the payment date. Default: 30")
+    parser.add_argument("--dry_run", action="store_true", help="Perform a dry run without saving any changes.")
     args = parser.parse_args()
 
     try:
@@ -163,17 +164,20 @@ def main():
                             # This is a match!
                             match_counter += 1
                             print(f"[{match_counter}] Matching payment on {payment_date} ({payment_amount}) to Invoice {doc.GetID()} ({doc_amount}) from {doc_date}")
-                            # Assign the split to the lot.
-                            other_split.AssignToLot(doc.GetPostedLot())
+                            if not args.dry_run:
+                                # Assign the split to the lot.
+                                other_split.AssignToLot(doc.GetPostedLot())
+                                # Mark that we made changes. So that we can save the session later.
+                                changes_made = True
                             # Remove the document from the list of unpaid documents. We don't consider multiple payments to the same document.
                             unpaid_docs.remove(doc)
-                            # Mark that we made changes. So that we can save the session later.
-                            changes_made = True
                         break
                 break
         processed_transactions.add(transaction.GetGUID())
 
-    if changes_made:
+    if args.dry_run:
+        print(f"DRY RUN: Found {match_counter} potential matches. No changes will be saved.")
+    elif changes_made:
         print(f"{match_counter} Matches found.")
         print("Saving changes...")
         session.save()
