@@ -128,9 +128,11 @@ def main():
     if args.mode == 'ar':
         unpaid_docs = get_all_invoices(book, is_paid=0)
         print(f"Found {len(unpaid_docs)} unpaid invoices.")
+        doc_type_str = "Invoice"
     elif args.mode == 'ap':
         unpaid_docs = get_all_bills(book, is_paid=0)
         print(f"Found {len(unpaid_docs)} unpaid bills.")
+        doc_type_str = "Bill"
 
     match_counter = 0
     for split in payment_account.GetSplitList():
@@ -163,7 +165,7 @@ def main():
                         if postedLot.get_account().Equal(ar_ap_account, False):
                             # This is a match!
                             match_counter += 1
-                            print(f"[{match_counter}] Matching payment on {payment_date} ({payment_amount}) to Invoice {doc.GetID()} ({doc_amount}) from {doc_date}")
+                            print(f"[{match_counter}] Matching payment on {payment_date} ({payment_amount}) to {doc_type_str} {doc.GetID()} ({doc_amount}) from {doc_date}")
                             if not args.dry_run:
                                 # Assign the split to the lot.
                                 other_split.AssignToLot(doc.GetPostedLot())
