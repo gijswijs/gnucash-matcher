@@ -178,6 +178,9 @@ def main():
                                 print(f"    Amount: {payment_amount}")
                                 print(f"  {doc_type_str} details:")
                                 print(f"    ID: {doc.GetID()}")
+                                billing_id = doc.GetBillingID()
+                                if billing_id:
+                                    print(f"    Billing ID: {billing_id}")
                                 print(f"    Company: {company_name}")
                                 print(f"    Date: {doc_date}")
                                 print(f"    Amount: {doc_amount}")
