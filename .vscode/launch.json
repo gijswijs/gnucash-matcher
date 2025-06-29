@@ -19,7 +19,12 @@
                                 "ap",
                                 "--ar_ap_account",
                                 // "Assets:Debiteuren:1300 Debiteuren"
-                                "Liabilities:1600 Crediteuren"
+                                "Liabilities:1600 Crediteuren",
+                                "--days_before",
+                                "3",
+                                "--days_after",
+                                "60",
+                                // "--dry_run"
                         ]
                 }
         ]
