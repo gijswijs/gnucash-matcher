@@ -100,6 +100,7 @@ def main():
     parser.add_argument("--days_before", type=int, default=10, help="Number of days the document date can be after the payment date. Default: 10")
     parser.add_argument("--days_after", type=int, default=30, help="Number of days the document date can be before the payment date. Default: 30")
     parser.add_argument("--dry_run", action="store_true", help="Perform a dry run without saving any changes.")
+    parser.add_argument("--confirm", action="store_true", help="Confirm each match manually.")
     args = parser.parse_args()
 
     try:
@@ -164,16 +165,40 @@ def main():
                         postedLot = doc.GetPostedLot()
                         # All splits assigned to the lot must belong to the same account.
                         if postedLot.get_account().Equal(ar_ap_account, False):
-                            # This is a match!
-                            match_counter += 1
-                            print(f"[{match_counter}] Matching payment on {payment_date} ({payment_amount}) to {doc_type_str} {doc.GetID()} ({doc_amount}) from {doc_date}")
-                            if not args.dry_run:
-                                # Assign the split to the lot.
-                                other_split.AssignToLot(doc.GetPostedLot())
-                                # Mark that we made changes. So that we can save the session later.
-                                changes_made = True
-                            # Remove the document from the list of unpaid documents. We don't consider multiple payments to the same document.
-                            unpaid_docs.remove(doc)
+                            # This is a potential match.
+                            do_match = False
+                            if args.confirm:
+                                owner = doc.GetOwner()
+                                company_name = owner.GetName() if owner else "N/A"
+                                print("-" * 20)
+                                print("Potential match found:")
+                                print("  Transaction details:")
+                                print(f"    Description: {transaction.GetDescription()}")
+                                print(f"    Date: {payment_date}")
+                                print(f"    Amount: {payment_amount}")
+                                print(f"  {doc_type_str} details:")
+                                print(f"    ID: {doc.GetID()}")
+                                print(f"    Company: {company_name}")
+                                print(f"    Date: {doc_date}")
+                                print(f"    Amount: {doc_amount}")
+
+                                choice = input("Match this? [y/N]: ").lower()
+                                if choice == 'y':
+                                    do_match = True
+                            else:
+                                do_match = True
+
+                            if do_match:
+                                # This is a match!
+                                match_counter += 1
+                                print(f"[{match_counter}] Matching payment on {payment_date} ({payment_amount}) to {doc_type_str} {doc.GetID()} ({doc_amount}) from {doc_date}")
+                                if not args.dry_run:
+                                    # Assign the split to the lot.
+                                    other_split.AssignToLot(doc.GetPostedLot())
+                                    # Mark that we made changes. So that we can save the session later.
+                                    changes_made = True
+                                # Remove the document from the list of unpaid documents. We don't consider multiple payments to the same document.
+                                unpaid_docs.remove(doc)
                         break
                 break
         processed_transactions.add(transaction.GetGUID())
