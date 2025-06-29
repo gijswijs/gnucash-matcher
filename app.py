@@ -1,9 +1,10 @@
+#!/usr/bin/env python3
 import argparse
 import sys
-from datetime import datetime, timedelta
+from datetime import datetime
 
 import gnucash
-from gnucash import Session
+from gnucash import Session, SessionOpenMode
 from gnucash.gnucash_business import Invoice
 from gnucash.gnucash_core_c import qof_log_set_level, qof_log_init_filename
 from gnucash.gnucash_core_c import GNC_INVOICE_CUST_INVOICE, GNC_INVOICE_VEND_INVOICE
@@ -102,7 +103,7 @@ def main():
     args = parser.parse_args()
 
     try:
-        session = Session(args.gnucash_file, is_new=False)
+        session = Session(args.gnucash_file, mode=SessionOpenMode.SESSION_NORMAL_OPEN)
     except Exception as e:
         print(f"Error opening GnuCash file: {e}", file=sys.stderr)
         sys.exit(1)
