@@ -103,6 +103,10 @@ def main():
     parser.add_argument("--confirm", action="store_true", help="Confirm each match manually.")
     args = parser.parse_args()
 
+    if (args.days_before is None) != (args.days_after is None):
+        print("Error: --days_before and --days_after must be specified together.", file=sys.stderr)
+        sys.exit(1)
+
     try:
         session = Session(args.gnucash_file, mode=SessionOpenMode.SESSION_NORMAL_OPEN)
     except Exception as e:
