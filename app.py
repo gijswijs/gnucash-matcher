@@ -99,6 +99,8 @@ def main():
     parser.add_argument("--ar_ap_account", required=True, help="Full name of the Accounts Receivable or Accounts Payable account.")
     parser.add_argument("--days_before", type=int, default=None, help="Number of days the document date can be after the payment date. For date filtering, both --days_before and --days_after must be specified.")
     parser.add_argument("--days_after", type=int, default=None, help="Number of days the document date can be before the payment date. For date filtering, both --days_before and --days_after must be specified.")
+    parser.add_argument("--match_id", action="store_true", help="Constrain match to transactions that contain the document ID in their description.")
+    parser.add_argument("--match_billing_id", action="store_true", help="Constrain match to transactions that contain the billing ID in their description.")
     parser.add_argument("--dry_run", action="store_true", help="Perform a dry run without saving any changes.")
     parser.add_argument("--confirm", action="store_true", help="Confirm each match manually.")
     args = parser.parse_args()
@@ -169,7 +171,11 @@ def main():
                     else:
                         date_condition = True
 
-                    if doc_amount.equal(payment_amount) and date_condition:
+                    transaction_desc = transaction.GetDescription()
+                    id_condition = not args.match_id or doc.GetID() in transaction_desc
+                    billing_id_condition = not args.match_billing_id or doc.GetBillingID() in transaction_desc
+
+                    if doc_amount.equal(payment_amount) and date_condition and id_condition and billing_id_condition:
                         # Get the posted lot of the document. This is where gnucash keeps track of the open balance.
                         postedLot = doc.GetPostedLot()
                         # All splits assigned to the lot must belong to the same account.
